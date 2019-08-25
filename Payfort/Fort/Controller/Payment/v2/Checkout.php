@@ -81,8 +81,8 @@ abstract class Checkout extends \Magento\Framework\App\Action\Action
     protected function _cancelCurrenctOrderPayment($errorMsg = '')
     {
         $gotoSection = false;
-        $this->_helper->cancelCurrentOrder($errorMsg);
-        if ($this->_checkoutSession->restoreQuote()) {
+
+        if ($this->_helper->cancelCurrentOrderAndRestoreQuote($errorMsg)) {
             //Redirect to payment step
             $gotoSection = 'paymentMethod';
         }

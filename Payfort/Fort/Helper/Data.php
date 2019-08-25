@@ -74,6 +74,12 @@ class Data extends \Magento\Payment\Helper\Data
      * @var \Magento\Framework\App\ProductMetadataInterface
      */
     protected $_productMetadata;
+    
+    /**
+    * @var \Magento\Quote\Api\CartRepositoryInterface
+    */
+    protected $_quoteRepository;
+
         
     const PAYFORT_FORT_INTEGRATION_TYPE_REDIRECTION = 'redirection';
     const PAYFORT_FORT_INTEGRATION_TYPE_MERCAHNT_PAGE = 'merchantPage';
@@ -98,7 +104,8 @@ class Data extends \Magento\Payment\Helper\Data
         \Magento\CatalogInventory\Model\Indexer\Stock\Processor $stockIndexerProcessor,
         \Magento\Catalog\Model\Indexer\Product\Price\Processor $priceIndexer,
         \Magento\CatalogInventory\Observer\ProductQty $productQty,
-        \Magento\Framework\App\ProductMetadataInterface $productMetadata
+        \Magento\Framework\App\ProductMetadataInterface $productMetadata,
+        \Magento\Quote\Api\CartRepositoryInterface $quoteRepository
     ) {
         parent::__construct($context,$layoutFactory, $paymentMethodFactory, $appEmulation, $paymentConfig, $initialConfig);
         $this->_storeManager = $storeManager;
@@ -112,6 +119,7 @@ class Data extends \Magento\Payment\Helper\Data
         $this->_priceIndexer = $priceIndexer;
         $this->_productQty = $productQty;
         $this->_productMetadata = $productMetadata;
+        $this->_quoteRepository = $quoteRepository;
     }
     
     public function setMethodCode($code) {
@@ -469,7 +477,7 @@ class Data extends \Magento\Payment\Helper\Data
         }
         return $language;
     }
-    
+
     /**
      * Restores quote
      *
@@ -482,8 +490,38 @@ class Data extends \Magento\Payment\Helper\Data
         if ($result && $this->isReturnItemsToInventoryRequired()) {
             $this->returnItemsToInventory();
         }
-
+        
         return $result;
+    }
+    
+    /** 
+     * Cancel order and restore quote.
+     * Use instead of calling cancelCurrentOrder and restoreQuote separately to 
+     * avoid restoring items to stock twice.
+     * 
+     * @param string $comment Comment appended to order history
+     * @return bool
+     */
+    public function cancelCurrentOrderAndRestoreQuote($comment) 
+    {
+        $this->cancelCurrentOrder($comment);
+        if ($this->isReturnItemsToInventoryRequired()) {
+            return $this->session->restoreQuote();
+        }
+        $order = $this->session->getLastRealOrder();
+        if ($order->getId()) {
+            try {
+                $quote = $this->_quoteRepository->get($order->getQuoteId());
+                $quote->setIsActive(1)->setReservedOrderId(null);
+                $this->_quoteRepository->save($quote);
+                $this->session->replaceQuote($quote)->unsLastRealOrderId();
+                return true;
+            } catch (Exception $ex) {
+                $this->log($ex->getMessage());
+            }
+        }
+        
+        return false;
     }
 
     /**

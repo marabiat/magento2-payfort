@@ -13,7 +13,6 @@ class MerchantPageCancel extends \Payfort\Fort\Controller\Checkout implements Cs
     public function execute()
     {
         $this->_cancelCurrenctOrderPayment('User has cancel the payment');
-        $this->_checkoutSession->restoreQuote();
         
         $message = __('You have canceled the payment.');
         $this->messageManager->addError( $message );            
